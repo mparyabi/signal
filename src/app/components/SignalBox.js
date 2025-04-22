@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { sendTelegramMessage } from "./telegram";
 
-// محاسبه EMA
 const calculateEMA = (data, period) => {
   const k = 2 / (period + 1);
   let ema = parseFloat(data[0].close);
@@ -13,48 +12,57 @@ const calculateEMA = (data, period) => {
   return ema;
 };
 
-// محاسبه ATR برای حد ضرر پویا
 const calculateATR = (data, period = 14) => {
   let trSum = 0;
   for (let i = 1; i <= period; i++) {
     const high = parseFloat(data[i].high);
     const low = parseFloat(data[i].low);
     const prevClose = parseFloat(data[i - 1].close);
-    const tr = Math.max(
-      high - low,
-      Math.abs(high - prevClose),
-      Math.abs(low - prevClose)
-    );
+    const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
     trSum += tr;
   }
   return trSum / period;
 };
 
-// محاسبه RSI واقعی
 const calculateRSI = (data, period = 14) => {
   let gains = 0;
   let losses = 0;
-
   for (let i = 1; i <= period; i++) {
     const change = parseFloat(data[i].close) - parseFloat(data[i - 1].close);
-    if (change > 0) {
-      gains += change;
-    } else {
-      losses -= change;
-    }
+    if (change > 0) gains += change;
+    else losses -= change;
   }
-
   const avgGain = gains / period;
   const avgLoss = losses / period;
   const rs = avgGain / avgLoss;
   return 100 - 100 / (1 + rs);
 };
 
-// محاسبه ADX
 const calculateADX = (data, period = 14) => {
-  // این بخش نیاز به پیاده‌سازی کامل دارد
-  // برای سادگی یک مقدار ثابت برگردانده می‌شود
-  return 30; // مقدار نمونه
+  let plusDM = 0, minusDM = 0, trSum = 0;
+  for (let i = 1; i <= period; i++) {
+    const current = data[i];
+    const prev = data[i - 1];
+    const upMove = parseFloat(current.high) - parseFloat(prev.high);
+    const downMove = parseFloat(prev.low) - parseFloat(current.low);
+
+    const plus = upMove > downMove && upMove > 0 ? upMove : 0;
+    const minus = downMove > upMove && downMove > 0 ? downMove : 0;
+
+    plusDM += plus;
+    minusDM += minus;
+
+    const tr = Math.max(
+      parseFloat(current.high) - parseFloat(current.low),
+      Math.abs(parseFloat(current.high) - parseFloat(prev.close)),
+      Math.abs(parseFloat(current.low) - parseFloat(prev.close))
+    );
+    trSum += tr;
+  }
+  const plusDI = (plusDM / trSum) * 100;
+  const minusDI = (minusDM / trSum) * 100;
+  const dx = (Math.abs(plusDI - minusDI) / (plusDI + minusDI)) * 100;
+  return dx;
 };
 
 const SignalBox = () => {
@@ -64,40 +72,33 @@ const SignalBox = () => {
   const [sl, setSL] = useState(null);
   const [realtimePrice, setRealtimePrice] = useState(null);
 
-
   useEffect(() => {
     const fetchData = async () => {
       const API_KEY = "29a51ede44be46ddad71772cf3b7d5bd";
       const symbol = "GBP/USD";
       const interval = "5min";
-      const outputsize = 200;
+      const outputsize = 500;
 
       try {
-        const { data } = await axios.get(
-          `https://api.twelvedata.com/time_series`,
-          {
-            params: {
-              symbol,
-              interval,
-              outputsize,
-              apikey: API_KEY,
-            },
-          }
-        );
+        const { data } = await axios.get(`https://api.twelvedata.com/time_series`, {
+          params: { symbol, interval, outputsize, apikey: API_KEY },
+        });
 
         const candles = data.values.reverse();
 
-        // محاسبات اندیکاتورها
-        const ema20 = calculateEMA(candles.slice(-30), 20); // 30 کندل برای محاسبه EMA20
-        const ema50 = calculateEMA(candles.slice(-70), 50); // 70 کندل برای محاسبه EMA50
-        const ema200 = calculateEMA(candles.slice(-220), 200); // 220 کندل برای محاسبه EMA200
+        const ema20 = calculateEMA(candles.slice(-30), 20);
+        const ema50 = calculateEMA(candles.slice(-70), 50);
+        const ema200 = calculateEMA(candles.slice(-220), 200);
+        const prevEma20 = calculateEMA(candles.slice(-31, -1), 20);
+        const prevEma50 = calculateEMA(candles.slice(-71, -1), 50);
+        const emaCrossUp = prevEma20 < prevEma50 && ema20 >= ema50;
+        const emaCrossDown = prevEma20 > prevEma50 && ema20 <= ema50;
 
-        const rsi = calculateRSI(candles.slice(-15)); // 15 کندل برای RSI
+        const rsi = calculateRSI(candles.slice(-15));
         const adx = calculateADX(candles);
         const atr = calculateATR(candles);
 
         const lastClose = parseFloat(candles.at(-1).close);
-        const prevClose = parseFloat(candles.at(-2).close);
 
         const macdData = candles.slice(-35).map((_, i, arr) => {
           if (i < 26) return 0;
@@ -106,91 +107,81 @@ const SignalBox = () => {
           return short - long;
         });
 
-        // محاسبه MACD (ساده‌شده)
-        const ema12 = calculateEMA(candles.slice(-26), 12); // 26 کندل برای EMA12
-        const ema26 = calculateEMA(candles.slice(-50), 26); // 50 کندل برای EMA26
-        const macdLine = ema12 - ema26; // نیاز به محاسبه EMA12 و EMA26 دارید
-        const signalLine = calculateEMA(macdData, 9); // نیاز به داده‌های MACD دارد
+        const ema12 = calculateEMA(candles.slice(-26), 12);
+        const ema26 = calculateEMA(candles.slice(-50), 26);
+        const macdLine = ema12 - ema26;
+        const signalLine = calculateEMA(macdData, 9);
         const prevMacdLine = macdData.at(-2);
         const prevSignalLine = calculateEMA(macdData.slice(-10, -1), 9);
 
-        const macdCross =
-          macdLine > signalLine && prevMacdLine <= prevSignalLine;
-
+        const macdCross = macdLine > signalLine && prevMacdLine <= prevSignalLine;
 
         const entryPrice = lastClose;
-        const sl = entryPrice - atr * 1.5; // حد ضرر 1.5 برابر ATR
-        const tp = entryPrice + (entryPrice - sl) * 3; // ریسک به ریوارد 1:3
+        const sl = entryPrice - atr * 1.5;
+        const tp = entryPrice + (entryPrice - sl) * 3;
 
         const newSignals = {
-          trendUp: ema20 > ema50 && ema50 > ema200, // روند صعودی قوی
-          trendDown: ema20 < ema50 && ema50 < ema200, // روند نزولی قوی
-          trendStrength: adx > 20, // قدرت روند
-          rsiOversold: rsi < 35 && rsi > 20, // اشباع فروش
-          rsiOverbought: rsi > 65 && rsi < 80, // اشباع خرید
-          rsiNormal: rsi > 30 && rsi < 70,
+          trendUp: ema20 > ema50 && ema50 > ema200 && emaCrossUp,
+          trendDown: ema20 < ema50 && ema50 < ema200 && emaCrossDown,
+          trendStrength: adx > 25,
+          rsiOversold: rsi < 35 && rsi > 20,
+          rsiOverbought: rsi > 65 && rsi < 80,
           macdCross,
           macdCrossDown: !macdCross,
         };
 
         setSignals(newSignals);
-        // بررسی شرایط سیگنال خرید
-        if (
-          newSignals.trendUp &&
-          newSignals.trendStrength &&
-          newSignals.rsiOversold &&
-          newSignals.macdCross 
-        ) {
-          sendTelegramMessage(
-            `📈 *Buy Signal Detected!*\nSymbol: GBP/USD\nEntry: *${entryPrice.toFixed(
-              5
-            )}*\nTP: *${tp.toFixed(5)}*\nSL: *${sl.toFixed(
-              5
-            )}*\nRisk/Reward: *1:3*`
-          );
-        }
 
-        // بررسی شرایط سیگنال فروش
-        else if (
-          newSignals.trendDown &&
-          newSignals.trendStrength &&
-          newSignals.rsiOverbought &&
-          newSignals.macdCrossDown 
-        ) {
-          sendTelegramMessage(
-            `📉 *Sell Signal Detected!*\nSymbol: GBP/USD\nEntry: *${entryPrice.toFixed(
-              5
-            )}*\nTP: *${tp.toFixed(5)}*\nSL: *${sl.toFixed(
-              5
-            )}*\nRisk/Reward: *1:3*`
-          );
+        const buySL = entryPrice - atr * 1.5;
+        const buyTP = entryPrice + (entryPrice - buySL) * 3;
+
+        const sellSL = entryPrice + atr * 1.5;
+        const sellTP = entryPrice - (sellSL - entryPrice) * 3;
+
+        const message =
+          `📊 Signal Analysis:\n` +
+          `🔹 Trend: ${
+            newSignals.trendUp
+              ? "✅ UP"
+              : newSignals.trendDown
+              ? "✅ DOWN"
+              : "❌ NO TREND"
+          }\n` +
+          `🔹 RSI: ${rsi.toFixed(2)} (${newSignals.rsiOversold ? "Oversold ✅" : newSignals.rsiOverbought ? "Overbought ✅" : "Normal ❌"})\n` +
+          `🔹 MACD Cross: ${macdCross ? "✅ Up" : "❌"}\n` +
+          `🔹 Entry: ${entryPrice.toFixed(5)} | TP: ${tp.toFixed(5)} | SL: ${sl.toFixed(5)}`;
+
+        if (newSignals.trendUp && newSignals.trendStrength && newSignals.rsiOversold && newSignals.macdCross) {
+          sendTelegramMessage(`📈 *Buy Signal!*\n📍 Entry: ${entryPrice.toFixed(5)}\n🎯 TP: ${buyTP.toFixed(5)} | 🛑 SL: ${buySL.toFixed(5)}\n${message}`);
+          setTP(buyTP);
+          setSL(buySL);
+        } else if (newSignals.trendDown && newSignals.trendStrength && newSignals.rsiOverbought && newSignals.macdCrossDown) {
+          sendTelegramMessage(`📉 *Sell Signal!*\n📍 Entry: ${entryPrice.toFixed(5)}\n🎯 TP: ${sellTP.toFixed(5)} | 🛑 SL: ${sellSL.toFixed(5)}\n${message}`);
+          setTP(sellTP);
+          setSL(sellSL);
         }
 
         setEntryPrice(entryPrice);
-        setTP(tp);
-        setSL(sl);
         setRealtimePrice(lastClose);
       } catch (err) {
         console.error("Failed to fetch data:", err);
       }
     };
+
     fetchData();
   }, []);
 
-  // سیگنال خرید بهبودیافته
   const buySignal =
     signals?.trendUp &&
     signals?.trendStrength &&
     signals?.rsiOversold &&
-    signals?.macdCross 
+    signals?.macdCross;
 
-  // سیگنال فروش بهبودیافته
   const sellSignal =
     signals?.trendDown &&
     signals?.trendStrength &&
     signals?.rsiOverbought &&
-    signals?.macdCrossDown 
-
+    signals?.macdCrossDown;
   return (
     <div className="bg-zinc-900 p-4 rounded-xl shadow-md text-white w-full">
       {/* سیگنال بای */}
@@ -224,7 +215,6 @@ const SignalBox = () => {
             >
               {signals.macdCross ? "✅ MACD Cross Up" : "❌ MACD Cross Up"}
             </p>
-
           </>
         )}
         <h2 className="font-bold text-lg mb-3 mt-6">
@@ -308,7 +298,6 @@ const SignalBox = () => {
                 ? "✅ MACD Cross Down"
                 : "❌ MACD Cross Down"}
             </p>
-     
           </>
         )}
         <h2 className="font-bold text-lg mb-3 mt-6">
