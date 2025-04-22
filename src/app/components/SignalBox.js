@@ -14,12 +14,14 @@ const SignalBox = () => {
   const [tp, setTP] = useState(null);
   const [sl, setSL] = useState(null);
   const [realtimePrice, setRealtimePrice] = useState(null);
-  const [symbol,setSymbol] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       const API_KEY = '29a51ede44be46ddad71772cf3b7d5bd';
-      setSymbol('GBP/USD');
+      const symbol = 'GBP/USD';
+      //const symbol = 'EUR/USD';
+      //const symbol = 'JPY/USD';
+      //const symbol = 'AUD/USD';
       const interval = '5min';
       const outputsize = 200;
 
@@ -77,7 +79,7 @@ const SignalBox = () => {
 
   return (
     <div className="bg-zinc-900 p-4 rounded-xl shadow-md text-white w-full">
-      <h5>symbol : {symbol}</h5>
+
       {/* سیگنال بای */}
       <div className="mb-6">
         <h2 className="font-bold text-lg mb-3">Buy Signal Conditions</h2>
