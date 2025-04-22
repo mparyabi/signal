@@ -63,7 +63,7 @@ const SignalBox = () => {
   const [tp, setTP] = useState(null);
   const [sl, setSL] = useState(null);
   const [realtimePrice, setRealtimePrice] = useState(null);
-  const [volumeFilter, setVolumeFilter] = useState(false);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -117,12 +117,6 @@ const SignalBox = () => {
         const macdCross =
           macdLine > signalLine && prevMacdLine <= prevSignalLine;
 
-        // فیلتر حجم
-        const currentVolume = parseFloat(candles.at(-1).volume);
-        const avgVolume20 =
-          candles.slice(-20).reduce((sum, c) => sum + parseFloat(c.volume), 0) /
-          20;
-        const volumeOk = currentVolume > avgVolume20 * 1.05;
 
         const entryPrice = lastClose;
         const sl = entryPrice - atr * 1.5; // حد ضرر 1.5 برابر ATR
@@ -137,7 +131,6 @@ const SignalBox = () => {
           rsiNormal: rsi > 30 && rsi < 70,
           macdCross,
           macdCrossDown: !macdCross,
-          volumeOk,
         };
 
         setSignals(newSignals);
@@ -146,8 +139,7 @@ const SignalBox = () => {
           newSignals.trendUp &&
           newSignals.trendStrength &&
           newSignals.rsiOversold &&
-          newSignals.macdCross &&
-          newSignals.volumeOk
+          newSignals.macdCross 
         ) {
           sendTelegramMessage(
             `📈 *Buy Signal Detected!*\nSymbol: GBP/USD\nEntry: *${entryPrice.toFixed(
@@ -163,8 +155,7 @@ const SignalBox = () => {
           newSignals.trendDown &&
           newSignals.trendStrength &&
           newSignals.rsiOverbought &&
-          newSignals.macdCrossDown &&
-          newSignals.volumeOk
+          newSignals.macdCrossDown 
         ) {
           sendTelegramMessage(
             `📉 *Sell Signal Detected!*\nSymbol: GBP/USD\nEntry: *${entryPrice.toFixed(
@@ -179,7 +170,6 @@ const SignalBox = () => {
         setTP(tp);
         setSL(sl);
         setRealtimePrice(lastClose);
-        setVolumeFilter(volumeOk);
       } catch (err) {
         console.error("Failed to fetch data:", err);
       }
@@ -192,16 +182,14 @@ const SignalBox = () => {
     signals?.trendUp &&
     signals?.trendStrength &&
     signals?.rsiOversold &&
-    signals?.macdCross &&
-    signals?.volumeOk;
+    signals?.macdCross 
 
   // سیگنال فروش بهبودیافته
   const sellSignal =
     signals?.trendDown &&
     signals?.trendStrength &&
     signals?.rsiOverbought &&
-    signals?.macdCrossDown &&
-    signals?.volumeOk;
+    signals?.macdCrossDown 
 
   return (
     <div className="bg-zinc-900 p-4 rounded-xl shadow-md text-white w-full">
@@ -236,9 +224,7 @@ const SignalBox = () => {
             >
               {signals.macdCross ? "✅ MACD Cross Up" : "❌ MACD Cross Up"}
             </p>
-            <p className={signals.volumeOk ? "text-green-500" : "text-red-500"}>
-              {signals.volumeOk ? "✅ Volume > 20MA" : "❌ Low Volume"}
-            </p>
+
           </>
         )}
         <h2 className="font-bold text-lg mb-3 mt-6">
@@ -322,9 +308,7 @@ const SignalBox = () => {
                 ? "✅ MACD Cross Down"
                 : "❌ MACD Cross Down"}
             </p>
-            <p className={signals.volumeOk ? "text-green-500" : "text-red-500"}>
-              {signals.volumeOk ? "✅ Volume > 20MA" : "❌ Low Volume"}
-            </p>
+     
           </>
         )}
         <h2 className="font-bold text-lg mb-3 mt-6">
@@ -370,10 +354,6 @@ const SignalBox = () => {
         <div className="mt-6">
           <h2 className="font-bold text-lg">Realtime Price</h2>
           <p className="text-white">قیمت لحظه‌ای: {realtimePrice.toFixed(5)}</p>
-          <p className="text-white">
-            حجم معاملات:{" "}
-            {volumeFilter ? "بالاتر از میانگین" : "پایین‌تر از میانگین"}
-          </p>
         </div>
       )}
     </div>
