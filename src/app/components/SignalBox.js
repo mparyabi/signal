@@ -184,9 +184,6 @@ const SignalBox = () => {
         console.error("Failed to fetch data:", err);
       }
     };
-    const interval = setInterval(fetchData, 60 * 5000); // هر دقیقه یک‌بار
-
-    return () => clearInterval(interval); // پاک‌سازی
   }, []);
 
   // سیگنال خرید بهبودیافته
