@@ -18,7 +18,11 @@ const calculateATR = (data, period = 14) => {
     const high = parseFloat(data[i].high);
     const low = parseFloat(data[i].low);
     const prevClose = parseFloat(data[i - 1].close);
-    const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
+    const tr = Math.max(
+      high - low,
+      Math.abs(high - prevClose),
+      Math.abs(low - prevClose)
+    );
     trSum += tr;
   }
   return trSum / period;
@@ -39,7 +43,9 @@ const calculateRSI = (data, period = 14) => {
 };
 
 const calculateADX = (data, period = 14) => {
-  let plusDM = 0, minusDM = 0, trSum = 0;
+  let plusDM = 0,
+    minusDM = 0,
+    trSum = 0;
   for (let i = 1; i <= period; i++) {
     const current = data[i];
     const prev = data[i - 1];
@@ -71,18 +77,20 @@ const SignalBox = () => {
   const [tp, setTP] = useState(null);
   const [sl, setSL] = useState(null);
   const [realtimePrice, setRealtimePrice] = useState(null);
+  const [symbol, setSymbol] = useState("GBP/USD");
+  const [interval, setInterval] = useState("5min");
 
   useEffect(() => {
     const fetchData = async () => {
       const API_KEY = "29a51ede44be46ddad71772cf3b7d5bd";
-      const symbol = "GBP/USD";
-      const interval = "5min";
-      const outputsize = 500;
 
       try {
-        const { data } = await axios.get(`https://api.twelvedata.com/time_series`, {
-          params: { symbol, interval, outputsize, apikey: API_KEY },
-        });
+        const { data } = await axios.get(
+          `https://api.twelvedata.com/time_series`,
+          {
+            params: { symbol, interval, outputsize: 500, apikey: API_KEY },
+          }
+        );
 
         const candles = data.values.reverse();
 
@@ -114,7 +122,8 @@ const SignalBox = () => {
         const prevMacdLine = macdData.at(-2);
         const prevSignalLine = calculateEMA(macdData.slice(-10, -1), 9);
 
-        const macdCross = macdLine > signalLine && prevMacdLine <= prevSignalLine;
+        const macdCross =
+          macdLine > signalLine && prevMacdLine <= prevSignalLine;
 
         const entryPrice = lastClose;
         const sl = entryPrice - atr * 1.5;
@@ -147,16 +156,46 @@ const SignalBox = () => {
               ? "✅ DOWN"
               : "❌ NO TREND"
           }\n` +
-          `🔹 RSI: ${rsi.toFixed(2)} (${newSignals.rsiOversold ? "Oversold ✅" : newSignals.rsiOverbought ? "Overbought ✅" : "Normal ❌"})\n` +
+          `🔹 RSI: ${rsi.toFixed(2)} (${
+            newSignals.rsiOversold
+              ? "Oversold ✅"
+              : newSignals.rsiOverbought
+              ? "Overbought ✅"
+              : "Normal ❌"
+          })\n` +
           `🔹 MACD Cross: ${macdCross ? "✅ Up" : "❌"}\n` +
-          `🔹 Entry: ${entryPrice.toFixed(5)} | TP: ${tp.toFixed(5)} | SL: ${sl.toFixed(5)}`;
+          `🔹 Entry: ${entryPrice.toFixed(5)} | TP: ${tp.toFixed(
+            5
+          )} | SL: ${sl.toFixed(5)}`;
 
-        if (newSignals.trendUp && newSignals.trendStrength && newSignals.rsiOversold && newSignals.macdCross) {
-          sendTelegramMessage(`📈 *Buy Signal!*\n📍 Entry: ${entryPrice.toFixed(5)}\n🎯 TP: ${buyTP.toFixed(5)} | 🛑 SL: ${buySL.toFixed(5)}\n${message}`);
+        if (
+          newSignals.trendUp &&
+          newSignals.trendStrength &&
+          newSignals.rsiOversold &&
+          newSignals.macdCross
+        ) {
+          sendTelegramMessage(
+            `📈 *Buy Signal!*\n📍 Entry: ${entryPrice.toFixed(
+              5
+            )}\n🎯 TP: ${buyTP.toFixed(5)} | 🛑 SL: ${buySL.toFixed(
+              5
+            )}\n${message}`
+          );
           setTP(buyTP);
           setSL(buySL);
-        } else if (newSignals.trendDown && newSignals.trendStrength && newSignals.rsiOverbought && newSignals.macdCrossDown) {
-          sendTelegramMessage(`📉 *Sell Signal!*\n📍 Entry: ${entryPrice.toFixed(5)}\n🎯 TP: ${sellTP.toFixed(5)} | 🛑 SL: ${sellSL.toFixed(5)}\n${message}`);
+        } else if (
+          newSignals.trendDown &&
+          newSignals.trendStrength &&
+          newSignals.rsiOverbought &&
+          newSignals.macdCrossDown
+        ) {
+          sendTelegramMessage(
+            `📉 *Sell Signal!*\n📍 Entry: ${entryPrice.toFixed(
+              5
+            )}\n🎯 TP: ${sellTP.toFixed(5)} | 🛑 SL: ${sellSL.toFixed(
+              5
+            )}\n${message}`
+          );
           setTP(sellTP);
           setSL(sellSL);
         }
@@ -169,7 +208,7 @@ const SignalBox = () => {
     };
 
     fetchData();
-  }, []);
+  }, [symbol, interval]);
 
   const buySignal =
     signals?.trendUp &&
@@ -184,6 +223,37 @@ const SignalBox = () => {
     signals?.macdCrossDown;
   return (
     <div className="bg-zinc-900 p-4 rounded-xl shadow-md text-white w-full">
+      <div className="flex gap-4 mb-6">
+        <div>
+          <label className="block mb-1">جفت‌ارز:</label>
+          <select
+            value={symbol}
+            onChange={(e) => setSymbol(e.target.value)}
+            className="text-black rounded p-2"
+          >
+            <option value="GBP/USD">GBP/USD</option>
+            <option value="EUR/USD">EUR/USD</option>
+            <option value="USD/JPY">USD/JPY</option>
+            <option value="BTC/USD">BTC/USD</option>
+          </select>
+        </div>
+        <div>
+          <label className="block mb-1">تایم‌فریم:</label>
+          <select
+            value={interval}
+            onChange={(e) => setInterval(e.target.value)}
+            className="text-black rounded p-2"
+          >
+            <option value="5min">5 دقیقه</option>
+            <option value="15min">15 دقیقه</option>
+            <option value="30min">30 دقیقه</option>
+            <option value="1h">1 ساعت</option>
+            <option value="4h">4 ساعت</option>
+            <option value="1day">1 روز</option>
+          </select>
+        </div>
+      </div>
+
       {/* سیگنال بای */}
       <div className="mb-6">
         <h2 className="font-bold text-lg mb-3">Buy Signal Conditions</h2>
