@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { sendTelegramMessage } from "./telegram";
 
 // محاسبه EMA
 const calculateEMA = (data, period) => {
@@ -140,6 +141,40 @@ const SignalBox = () => {
         };
 
         setSignals(newSignals);
+        // بررسی شرایط سیگنال خرید
+        if (
+          newSignals.trendUp &&
+          newSignals.trendStrength &&
+          newSignals.rsiOversold &&
+          newSignals.macdCross &&
+          newSignals.volumeOk
+        ) {
+          sendTelegramMessage(
+            `📈 *Buy Signal Detected!*\nSymbol: GBP/USD\nEntry: *${entryPrice.toFixed(
+              5
+            )}*\nTP: *${tp.toFixed(5)}*\nSL: *${sl.toFixed(
+              5
+            )}*\nRisk/Reward: *1:3*`
+          );
+        }
+
+        // بررسی شرایط سیگنال فروش
+        else if (
+          newSignals.trendDown &&
+          newSignals.trendStrength &&
+          newSignals.rsiOverbought &&
+          newSignals.macdCrossDown &&
+          newSignals.volumeOk
+        ) {
+          sendTelegramMessage(
+            `📉 *Sell Signal Detected!*\nSymbol: GBP/USD\nEntry: *${entryPrice.toFixed(
+              5
+            )}*\nTP: *${tp.toFixed(5)}*\nSL: *${sl.toFixed(
+              5
+            )}*\nRisk/Reward: *1:3*`
+          );
+        }
+
         setEntryPrice(entryPrice);
         setTP(tp);
         setSL(sl);
