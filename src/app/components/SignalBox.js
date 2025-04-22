@@ -92,8 +92,9 @@ const SignalBox = () => {
           }
         );
 
-        if (!data || !data.values) {
-          console.error("Data is undefined or empty");
+
+        if (!data || !data.values || data.values.length === 0) {
+          console.error("Data is undefined, empty, or malformed");
           return;
         }
 
