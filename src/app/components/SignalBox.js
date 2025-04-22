@@ -122,7 +122,7 @@ const SignalBox = () => {
         const avgVolume20 =
           candles.slice(-20).reduce((sum, c) => sum + parseFloat(c.volume), 0) /
           20;
-        const volumeOk = currentVolume > avgVolume20 * 1.2;
+        const volumeOk = currentVolume > avgVolume20 * 1.05;
 
         const entryPrice = lastClose;
         const sl = entryPrice - atr * 1.5; // حد ضرر 1.5 برابر ATR
@@ -131,9 +131,9 @@ const SignalBox = () => {
         const newSignals = {
           trendUp: ema20 > ema50 && ema50 > ema200, // روند صعودی قوی
           trendDown: ema20 < ema50 && ema50 < ema200, // روند نزولی قوی
-          trendStrength: adx > 25, // قدرت روند
-          rsiOversold: rsi < 30 && rsi > 20, // اشباع فروش
-          rsiOverbought: rsi > 70 && rsi < 80, // اشباع خرید
+          trendStrength: adx > 20, // قدرت روند
+          rsiOversold: rsi < 35 && rsi > 20, // اشباع فروش
+          rsiOverbought: rsi > 65 && rsi < 80, // اشباع خرید
           rsiNormal: rsi > 30 && rsi < 70,
           macdCross,
           macdCrossDown: !macdCross,
