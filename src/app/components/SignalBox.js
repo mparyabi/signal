@@ -92,6 +92,11 @@ const SignalBox = () => {
           }
         );
 
+        if (!data || !data.values) {
+          console.error("Data is undefined or empty");
+          return;
+        }
+
         const candles = data.values.reverse();
 
         const ema20 = calculateEMA(candles.slice(-30), 20);
