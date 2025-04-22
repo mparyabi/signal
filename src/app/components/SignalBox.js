@@ -184,6 +184,7 @@ const SignalBox = () => {
         console.error("Failed to fetch data:", err);
       }
     };
+    fetchData();
   }, []);
 
   // سیگنال خرید بهبودیافته
