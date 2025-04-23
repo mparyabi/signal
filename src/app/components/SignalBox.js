@@ -227,7 +227,7 @@ const SignalBox = () => {
             <option value="GBP/USD">GBP/USD</option>
             <option value="EUR/USD">EUR/USD</option>
             <option value="USD/JPY">USD/JPY</option>
-            <option value="BTC/USD">BTC/USD</option>
+            <option value="AUD/USD">AUD/USD</option>
           </select>
         </div>
         <div>
