@@ -137,7 +137,7 @@ const SignalBox = () => {
 
         const newSignals = {
           trendStrength: adx > 25,
-          rsiOversold: rsi < 35 && rsi > 20,
+          rsiOversold: rsi < 40,
           rsiOverbought: rsi > 65 && rsi < 80,
           macdCross,
           macdCrossDown: !macdCross,
