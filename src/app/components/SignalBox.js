@@ -136,8 +136,6 @@ const SignalBox = () => {
         const tp = entryPrice + (entryPrice - sl) * 3;
 
         const newSignals = {
-          trendUp: ema20 > ema50 && ema50 > ema200 && emaCrossUp,
-          trendDown: ema20 < ema50 && ema50 < ema200 && emaCrossDown,
           trendStrength: adx > 25,
           rsiOversold: rsi < 35 && rsi > 20,
           rsiOverbought: rsi > 65 && rsi < 80,
@@ -155,13 +153,6 @@ const SignalBox = () => {
 
         const message =
           `📊 Signal Analysis:\n` +
-          `🔹 Trend: ${
-            newSignals.trendUp
-              ? "✅ UP"
-              : newSignals.trendDown
-              ? "✅ DOWN"
-              : "❌ NO TREND"
-          }\n` +
           `🔹 RSI: ${rsi.toFixed(2)} (${
             newSignals.rsiOversold
               ? "Oversold ✅"
@@ -175,7 +166,6 @@ const SignalBox = () => {
           )} | SL: ${sl.toFixed(5)}`;
 
         if (
-          newSignals.trendUp &&
           newSignals.trendStrength &&
           newSignals.rsiOversold &&
           newSignals.macdCross
@@ -190,7 +180,6 @@ const SignalBox = () => {
           setTP(buyTP);
           setSL(buySL);
         } else if (
-          newSignals.trendDown &&
           newSignals.trendStrength &&
           newSignals.rsiOverbought &&
           newSignals.macdCrossDown
@@ -217,13 +206,11 @@ const SignalBox = () => {
   }, [symbol, interval]);
 
   const buySignal =
-    signals?.trendUp &&
     signals?.trendStrength &&
     signals?.rsiOversold &&
     signals?.macdCross;
 
   const sellSignal =
-    signals?.trendDown &&
     signals?.trendStrength &&
     signals?.rsiOverbought &&
     signals?.macdCrossDown;
@@ -265,11 +252,6 @@ const SignalBox = () => {
         <h2 className="font-bold text-lg mb-3">Buy Signal Conditions</h2>
         {signals && (
           <>
-            <p className={signals.trendUp ? "text-green-500" : "text-red-500"}>
-              {signals.trendUp
-                ? "✅ Trend Up (EMA20 > EMA50 > EMA200)"
-                : "❌ Trend Down"}
-            </p>
             <p
               className={
                 signals.trendStrength ? "text-green-500" : "text-red-500"
@@ -340,13 +322,6 @@ const SignalBox = () => {
         <h2 className="font-bold text-lg mb-3">Sell Signal Conditions</h2>
         {signals && (
           <>
-            <p
-              className={signals.trendDown ? "text-green-500" : "text-red-500"}
-            >
-              {signals.trendDown
-                ? "✅ Trend Down (EMA20 < EMA50 < EMA200)"
-                : "❌ Trend Up"}
-            </p>
             <p
               className={
                 signals.trendStrength ? "text-green-500" : "text-red-500"
