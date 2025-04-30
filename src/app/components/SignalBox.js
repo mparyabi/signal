@@ -2,74 +2,15 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { sendTelegramMessage } from "./telegram";
+import {
+  calculateEMA,
+  calculateRSI,
+  calculateATR,
+  calculateADX,
+  calculateMACD,
+} from "@/app/components/UseSignalAnalysis"
 
-const calculateEMA = (data, period) => {
-  const k = 2 / (period + 1);
-  let ema = parseFloat(data[0].close);
-  for (let i = 1; i < data.length; i++) {
-    ema = parseFloat(data[i].close) * k + ema * (1 - k);
-  }
-  return ema;
-};
 
-const calculateATR = (data, period = 14) => {
-  let trSum = 0;
-  for (let i = 1; i <= period; i++) {
-    const high = parseFloat(data[i].high);
-    const low = parseFloat(data[i].low);
-    const prevClose = parseFloat(data[i - 1].close);
-    const tr = Math.max(
-      high - low,
-      Math.abs(high - prevClose),
-      Math.abs(low - prevClose)
-    );
-    trSum += tr;
-  }
-  return trSum / period;
-};
-
-const calculateRSI = (data, period = 14) => {
-  let gains = 0;
-  let losses = 0;
-  for (let i = 1; i <= period; i++) {
-    const change = parseFloat(data[i].close) - parseFloat(data[i - 1].close);
-    if (change > 0) gains += change;
-    else losses -= change;
-  }
-  const avgGain = gains / period;
-  const avgLoss = losses / period;
-  const rs = avgGain / avgLoss;
-  return 100 - 100 / (1 + rs);
-};
-
-const calculateADX = (data, period = 14) => {
-  let plusDM = 0,
-    minusDM = 0,
-    trSum = 0;
-  for (let i = 1; i <= period; i++) {
-    const current = data[i];
-    const prev = data[i - 1];
-    const upMove = parseFloat(current.high) - parseFloat(prev.high);
-    const downMove = parseFloat(prev.low) - parseFloat(current.low);
-
-    const plus = upMove > downMove && upMove > 0 ? upMove : 0;
-    const minus = downMove > upMove && downMove > 0 ? downMove : 0;
-
-    plusDM += plus;
-    minusDM += minus;
-
-    const tr = Math.max(
-      parseFloat(current.high) - parseFloat(current.low),
-      Math.abs(parseFloat(current.high) - parseFloat(prev.close)),
-      Math.abs(parseFloat(current.low) - parseFloat(prev.close))
-    );
-    trSum += tr;
-  }
-  const plusDI = (plusDM / trSum) * 100;
-  const minusDI = (minusDM / trSum) * 100;
-  const dx = (Math.abs(plusDI - minusDI) / (plusDI + minusDI)) * 100;
-  return dx;
-};
 
 const SignalBox = () => {
   const [signals, setSignals] = useState(null);
