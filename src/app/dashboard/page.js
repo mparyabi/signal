@@ -1,11 +1,11 @@
-// import Chart from "../components/Chart";
-import SignalBox from "../components/SignalBox";
+import ForexSignalApp from '../components/SignalBox';
 
-export default function Dashboard() {
+export default function Home() {
   return (
-    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-      {/* <Chart /> */}
-      <SignalBox />
+    <div className="min-h-screen bg-gray-100">
+      <main className="container mx-auto py-8">
+        <ForexSignalApp />
+      </main>
     </div>
   );
 }
