@@ -1,344 +1,298 @@
-"use client";
-import { useEffect, useState } from "react";
-import axios from "axios";
-import { sendTelegramMessage } from "./telegram";
-import {
-  calculateEMA,
-  calculateRSI,
-  calculateATR,
-  calculateADX,
-  calculateMACD,
-} from "@/app/components/UseSignalAnalysis"
+import { useState, useEffect } from 'react';
+import { SMA, EMA, RSI, MACD, Stochastic } from 'technicalindicators';
+import axios from 'axios';
+
+const ForexSignalApp = () => {
+  const [timeframe, setTimeframe] = useState('5m');
+  const [currencyPairs, setCurrencyPairs] = useState([
+    'EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD',
+    'USD/CHF', 'NZD/USD', 'EUR/GBP', 'EUR/JPY', 'GBP/JPY'
+  ]);
+  const [selectedPairs, setSelectedPairs] = useState(['EUR/USD', 'GBP/USD', 'USD/JPY']);
+  const [signals, setSignals] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // استراتژی ترکیبی برای سیگنال دقیق
+  const analyzeSignals = (ohlcData) => {
+    const closes = ohlcData.map(d => d.close);
+    const highs = ohlcData.map(d => d.high);
+    const lows = ohlcData.map(d => d.low);
+
+    // محاسبه اندیکاتورها
+    const rsiPeriod = 14;
+    const rsi = RSI.calculate({ values: closes, period: rsiPeriod });
+    const currentRsi = rsi[rsi.length - 1];
+
+    const macdInput = {
+      values: closes,
+      fastPeriod: 12,
+      slowPeriod: 26,
+      signalPeriod: 9,
+      SimpleMAOscillator: false,
+      SimpleMASignal: false
+    };
+    const macd = MACD.calculate(macdInput);
+    const currentMacd = macd[macd.length - 1];
+
+    const stochasticPeriod = 14;
+    const stochastic = Stochastic.calculate({
+      high: highs,
+      low: lows,
+      close: closes,
+      period: stochasticPeriod,
+      signalPeriod: 3
+    });
+    const currentStochastic = stochastic[stochastic.length - 1];
+
+    // قوانین استراتژی ترکیبی
+    const buySignal = 
+      currentRsi < 30 && 
+      currentMacd.histogram > 0 && 
+      currentMacd.MACD > currentMacd.signal && 
+      currentStochastic.k < 20 && 
+      currentStochastic.d < 20 && 
+      currentStochastic.k > currentStochastic.d;
+
+    const sellSignal = 
+      currentRsi > 70 && 
+      currentMacd.histogram < 0 && 
+      currentMacd.MACD < currentMacd.signal && 
+      currentStochastic.k > 80 && 
+      currentStochastic.d > 80 && 
+      currentStochastic.k < currentStochastic.d;
+
+    return {
+      rsi: currentRsi,
+      macd: currentMacd,
+      stochastic: currentStochastic,
+      signal: buySignal ? 'BUY' : sellSignal ? 'SELL' : 'NEUTRAL',
+      strength: buySignal || sellSignal ? 
+        Math.abs(currentRsi - 50) / 50 + 
+        Math.abs(currentMacd.histogram) * 10 + 
+        Math.abs(currentStochastic.k - currentStochastic.d) / 100 : 0
+    };
+  };
+
+  const fetchOHLCData = async (pair) => {
+    try {
+      const API_KEY = "29a51ede44be46ddad71772cf3b7d5bd";
+      // در اینجا باید از یک API واقعی مانند Alpha Vantage یا دیگر سرویسها استفاده کنید
+      // این یک نمونه شبیهسازی شده است
+      const response =  await axios.get(
+        `https://api.twelvedata.com/time_series`,
+        {
+          params: { symbol, interval, outputsize: 500, apikey: API_KEY },
+        }
+      );
+  
+      // اگر API واقعی ندارید، میتوانید از دادههای نمونه استفاده کنید:
+      const sampleData = generateSampleData();
+      
+      return response.data || sampleData;
+    } catch (err) {
+      console.error(`Error fetching data for ${pair}:`, err);
+      return generateSampleData();
+    }
+  };
 
 
 
-const SignalBox = () => {
-  const [signals, setSignals] = useState(null);
-  const [entryPrice, setEntryPrice] = useState(null);
-  const [tp, setTP] = useState(null);
-  const [sl, setSL] = useState(null);
-  const [realtimePrice, setRealtimePrice] = useState(null);
-  const [symbol, setSymbol] = useState("GBP/USD");
-  const [interval, setInterval] = useState("5min");
+  const generateSampleData = () => {
+    const data = [];
+    let lastClose = 1.0 + Math.random() * 0.5; // مقدار اولیه تصادفی
+    
+    for (let i = 0; i < 100; i++) {
+      const change = (Math.random() - 0.5) * 0.01;
+      lastClose *= (1 + change);
+      
+      data.push({
+        open: lastClose,
+        high: lastClose + Math.random() * 0.005,
+        low: lastClose - Math.random() * 0.005,
+        close: lastClose,
+        volume: Math.floor(Math.random() * 10000)
+      });
+    }
+    
+    return data;
+  };
+
+  const getSignals = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const signalsData = [];
+      
+      for (const pair of selectedPairs) {
+        const ohlcData = await fetchOHLCData(pair);
+        const analysis = analyzeSignals(ohlcData);
+        
+        signalsData.push({
+          pair,
+          signal: analysis.signal,
+          strength: analysis.strength,
+          rsi: analysis.rsi,
+          macd: analysis.macd,
+          stochastic: analysis.stochastic,
+          lastClose: ohlcData[ohlcData.length - 1].close
+        });
+      }
+      
+      setSignals(signalsData);
+    } catch (err) {
+      setError('Failed to fetch and analyze data. Please try again later.');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      const API_KEY = "29a51ede44be46ddad71772cf3b7d5bd";
+    getSignals();
+    
+    // بروزرسانی خودکار هر 5 دقیقه
+    const interval = setInterval(getSignals, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [timeframe, selectedPairs]);
 
-      try {
-        const { data } = await axios.get(
-          `https://api.twelvedata.com/time_series`,
-          {
-            params: { symbol, interval, outputsize: 500, apikey: API_KEY },
-          }
-        );
+  const togglePairSelection = (pair) => {
+    if (selectedPairs.includes(pair)) {
+      setSelectedPairs(selectedPairs.filter(p => p !== pair));
+    } else {
+      setSelectedPairs([...selectedPairs, pair]);
+    }
+  };
 
-
-        if (!data || !data.values || data.values.length === 0) {
-          console.error("Data is undefined, empty, or malformed");
-          return;
-        }
-
-        const candles = data.values.reverse();
-
-        const ema20 = calculateEMA(candles.slice(-30), 20);
-        const ema50 = calculateEMA(candles.slice(-70), 50);
-        const ema200 = calculateEMA(candles.slice(-220), 200);
-        const prevEma20 = calculateEMA(candles.slice(-31, -1), 20);
-        const prevEma50 = calculateEMA(candles.slice(-71, -1), 50);
-        const emaCrossUp = prevEma20 < prevEma50 && ema20 >= ema50;
-        const emaCrossDown = prevEma20 > prevEma50 && ema20 <= ema50;
-
-        const rsi = calculateRSI(candles.slice(-15));
-        const adx = calculateADX(candles);
-        const atr = calculateATR(candles);
-
-        const lastClose = parseFloat(candles.at(-1).close);
-
-        const macdData = candles.slice(-35).map((_, i, arr) => {
-          if (i < 26) return 0;
-          const short = calculateEMA(arr.slice(i - 12, i + 1), 12);
-          const long = calculateEMA(arr.slice(i - 26, i + 1), 26);
-          return short - long;
-        });
-
-        const ema12 = calculateEMA(candles.slice(-26), 12);
-        const ema26 = calculateEMA(candles.slice(-50), 26);
-        const macdLine = ema12 - ema26;
-        const signalLine = calculateEMA(macdData, 9);
-        const prevMacdLine = macdData.at(-2);
-        const prevSignalLine = calculateEMA(macdData.slice(-10, -1), 9);
-
-        const macdCross =
-          macdLine > signalLine && prevMacdLine <= prevSignalLine;
-
-        const entryPrice = lastClose;
-        const sl = entryPrice - atr * 1.5;
-        const tp = entryPrice + (entryPrice - sl) * 3;
-
-        const newSignals = {
-          trendStrength: adx > 25,
-          rsiOversold: rsi < 40,
-          rsiOverbought: rsi > 65 && rsi < 80,
-          macdCross,
-          macdCrossDown: !macdCross,
-        };
-
-        setSignals(newSignals);
-
-        const buySL = entryPrice - atr * 1.5;
-        const buyTP = entryPrice + (entryPrice - buySL) * 3;
-
-        const sellSL = entryPrice + atr * 1.5;
-        const sellTP = entryPrice - (sellSL - entryPrice) * 3;
-
-        const message =
-          `📊 Signal Analysis:\n` +
-          `🔹 RSI: ${rsi.toFixed(2)} (${
-            newSignals.rsiOversold
-              ? "Oversold ✅"
-              : newSignals.rsiOverbought
-              ? "Overbought ✅"
-              : "Normal ❌"
-          })\n` +
-          `🔹 MACD Cross: ${macdCross ? "✅ Up" : "❌"}\n` +
-          `🔹 Entry: ${entryPrice.toFixed(5)} | TP: ${tp.toFixed(
-            5
-          )} | SL: ${sl.toFixed(5)}`;
-
-        if (
-          newSignals.trendStrength &&
-          newSignals.rsiOversold &&
-          newSignals.macdCross
-        ) {
-          sendTelegramMessage(
-            `📈 *Buy Signal!*\n📍 Entry: ${entryPrice.toFixed(
-              5
-            )}\n🎯 TP: ${buyTP.toFixed(5)} | 🛑 SL: ${buySL.toFixed(
-              5
-            )}\n${message}`
-          );
-          setTP(buyTP);
-          setSL(buySL);
-        } else if (
-          newSignals.trendStrength &&
-          newSignals.rsiOverbought &&
-          newSignals.macdCrossDown
-        ) {
-          sendTelegramMessage(
-            `📉 *Sell Signal!*\n📍 Entry: ${entryPrice.toFixed(
-              5
-            )}\n🎯 TP: ${sellTP.toFixed(5)} | 🛑 SL: ${sellSL.toFixed(
-              5
-            )}\n${message}`
-          );
-          setTP(sellTP);
-          setSL(sellSL);
-        }
-
-        setEntryPrice(entryPrice);
-        setRealtimePrice(lastClose);
-      } catch (err) {
-        console.error("Failed to fetch data:", err);
-      }
-    };
-
-    fetchData();
-  }, [symbol, interval]);
-
-  const buySignal =
-    signals?.trendStrength &&
-    signals?.rsiOversold &&
-    signals?.macdCross;
-
-  const sellSignal =
-    signals?.trendStrength &&
-    signals?.rsiOverbought &&
-    signals?.macdCrossDown;
   return (
-    <div className="bg-zinc-900 p-4 rounded-xl shadow-md text-white w-full">
-      <div className="flex gap-4 mb-6">
-        <div>
-          <label className="block mb-1">جفت‌ارز:</label>
-          <select
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            className="text-black rounded p-2"
-          >
-            <option value="GBP/USD">GBP/USD</option>
-            <option value="EUR/USD">EUR/USD</option>
-            <option value="USD/JPY">USD/JPY</option>
-            <option value="AUD/USD">AUD/USD</option>
-          </select>
-        </div>
-        <div>
-          <label className="block mb-1">تایم‌فریم:</label>
-          <select
-            value={interval}
-            onChange={(e) => setInterval(e.target.value)}
-            className="text-black rounded p-2"
-          >
-            <option value="5min">5 دقیقه</option>
-            <option value="15min">15 دقیقه</option>
-            <option value="30min">30 دقیقه</option>
-            <option value="1h">1 ساعت</option>
-            <option value="4h">4 ساعت</option>
-            <option value="1day">1 روز</option>
-          </select>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold text-center mb-8">Forex Trading Signals</h1>
+      
+      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h2 className="text-xl font-semibold mb-4">Settings</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Time Frame</label>
+            <select
+              value={timeframe}
+              onChange={(e) => setTimeframe(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="5m">5 Minutes</option>
+              <option value="15m">15 Minutes</option>
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Currency Pairs</label>
+            <div className="grid grid-cols-2 gap-2">
+              {currencyPairs.map(pair => (
+                <label key={pair} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedPairs.includes(pair)}
+                    onChange={() => togglePairSelection(pair)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">{pair}</span>
+                </label>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
-
-      {/* سیگنال بای */}
-      <div className="mb-6">
-        <h2 className="font-bold text-lg mb-3">Buy Signal Conditions</h2>
-        {signals && (
-          <>
-            <p
-              className={
-                signals.trendStrength ? "text-green-500" : "text-red-500"
-              }
-            >
-              {signals.trendStrength
-                ? "✅ Strong Trend (ADX > 25)"
-                : "❌ Weak Trend"}
-            </p>
-            <p
-              className={
-                signals.rsiOversold ? "text-green-500" : "text-red-500"
-              }
-            >
-              {signals.rsiOversold ? "✅ RSI < 30 (Oversold)" : "❌ RSI > 30"}
-            </p>
-            <p
-              className={signals.macdCross ? "text-green-500" : "text-red-500"}
-            >
-              {signals.macdCross ? "✅ MACD Cross Up" : "❌ MACD Cross Up"}
-            </p>
-          </>
-        )}
-        <h2 className="font-bold text-lg mb-3 mt-6">
-          Buy Trade Recommendation
-        </h2>
-        <div>
-          {buySignal ? (
-            <p className="text-green-500">✅ وارد شوید! (سیگنال بای قوی)</p>
-          ) : (
-            <p className="text-red-500">❌ شرایط بای کامل نیست، وارد نشوید!</p>
-          )}
-        </div>
-        <h2 className="font-bold text-lg mb-3 mt-6">Buy Trade Info</h2>
-        <table className="w-full table-auto">
-          <thead>
-            <tr>
-              <th className="px-4 py-2">Entry Price</th>
-              <th className="px-4 py-2">Take Profit (TP)</th>
-              <th className="px-4 py-2">Stop Loss (SL)</th>
-              <th className="px-4 py-2">Risk/Reward</th>
-            </tr>
-          </thead>
-          <tbody>
-            {buySignal ? (
-              <tr>
-                <td className="px-4 py-2">{entryPrice?.toFixed(5)}</td>
-                <td className="px-4 py-2">{tp?.toFixed(5)}</td>
-                <td className="px-4 py-2">{sl?.toFixed(5)}</td>
-                <td className="px-4 py-2">1:3</td>
-              </tr>
-            ) : (
-              <tr>
-                <td className="px-4 py-2" colSpan="4">
-                  در حال حاضر سیگنال بای مناسبی برای ورود وجود ندارد.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <hr className="my-6 border-gray-700" />
-      <hr className="my-6 border-gray-700" />
-
-      {/* سیگنال سل */}
-      <div className="mb-6">
-        <h2 className="font-bold text-lg mb-3">Sell Signal Conditions</h2>
-        {signals && (
-          <>
-            <p
-              className={
-                signals.trendStrength ? "text-green-500" : "text-red-500"
-              }
-            >
-              {signals.trendStrength
-                ? "✅ Strong Trend (ADX > 25)"
-                : "❌ Weak Trend"}
-            </p>
-            <p
-              className={
-                signals.rsiOverbought ? "text-green-500" : "text-red-500"
-              }
-            >
-              {signals.rsiOverbought
-                ? "✅ RSI > 70 (Overbought)"
-                : "❌ RSI < 70"}
-            </p>
-            <p
-              className={
-                signals.macdCrossDown ? "text-green-500" : "text-red-500"
-              }
-            >
-              {signals.macdCrossDown
-                ? "✅ MACD Cross Down"
-                : "❌ MACD Cross Down"}
-            </p>
-          </>
-        )}
-        <h2 className="font-bold text-lg mb-3 mt-6">
-          Sell Trade Recommendation
-        </h2>
-        <div>
-          {sellSignal ? (
-            <p className="text-red-500">✅ وارد شوید! (سیگنال سل قوی)</p>
-          ) : (
-            <p className="text-red-500">❌ شرایط سل کامل نیست، وارد نشوید!</p>
-          )}
-        </div>
-        <h2 className="font-bold text-lg mb-3 mt-6">Sell Trade Info</h2>
-        <table className="w-full table-auto">
-          <thead>
-            <tr>
-              <th className="px-4 py-2">Entry Price</th>
-              <th className="px-4 py-2">Take Profit (TP)</th>
-              <th className="px-4 py-2">Stop Loss (SL)</th>
-              <th className="px-4 py-2">Risk/Reward</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sellSignal ? (
-              <tr>
-                <td className="px-4 py-2">{entryPrice?.toFixed(5)}</td>
-                <td className="px-4 py-2">{tp?.toFixed(5)}</td>
-                <td className="px-4 py-2">{sl?.toFixed(5)}</td>
-                <td className="px-4 py-2">1:3</td>
-              </tr>
-            ) : (
-              <tr>
-                <td className="px-4 py-2" colSpan="4">
-                  در حال حاضر سیگنال سل مناسبی برای ورود وجود ندارد.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {realtimePrice && (
-        <div className="mt-6">
-          <h2 className="font-bold text-lg">Realtime Price</h2>
-          <p className="text-white">قیمت لحظه‌ای: {realtimePrice.toFixed(5)}</p>
+      
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
+          <span className="block sm:inline">{error}</span>
         </div>
       )}
+      
+      {isLoading ? (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-2">Analyzing market data...</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="grid grid-cols-12 bg-gray-100 p-4 font-semibold">
+            <div className="col-span-2">Pair</div>
+            <div className="col-span-2">Signal</div>
+            <div className="col-span-2">Strength</div>
+            <div className="col-span-2">RSI (14)</div>
+            <div className="col-span-2">MACD</div>
+            <div className="col-span-2">Stochastic</div>
+          </div>
+          
+          {signals.map((signal, index) => (
+            <div 
+              key={index} 
+              className={`grid grid-cols-12 p-4 border-b border-gray-200 items-center ${
+                signal.signal === 'BUY' ? 'bg-green-50' : 
+                signal.signal === 'SELL' ? 'bg-red-50' : ''
+              }`}
+            >
+              <div className="col-span-2 font-medium">{signal.pair}</div>
+              <div className="col-span-2">
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                  signal.signal === 'BUY' ? 'bg-green-100 text-green-800' :
+                  signal.signal === 'SELL' ? 'bg-red-100 text-red-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {signal.signal}
+                </span>
+              </div>
+              <div className="col-span-2">
+                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                  <div 
+                    className={`h-2.5 rounded-full ${
+                      signal.signal === 'BUY' ? 'bg-green-600' : 'bg-red-600'
+                    }`} 
+                    style={{ width: `${Math.min(100, signal.strength * 100)}%` }}
+                  ></div>
+                </div>
+              </div>
+              <div className="col-span-2">
+                {signal.rsi ? signal.rsi.toFixed(2) : 'N/A'}
+                <div className={`h-1 w-full mt-1 ${
+                  signal.rsi < 30 ? 'bg-green-500' :
+                  signal.rsi > 70 ? 'bg-red-500' : 'bg-gray-300'
+                }`}></div>
+              </div>
+              <div className="col-span-2">
+                {signal.macd ? signal.macd.histogram.toFixed(5) : 'N/A'}
+                <div className={`h-1 w-full mt-1 ${
+                  signal.macd?.histogram > 0 ? 'bg-green-500' : 'bg-red-500'
+                }`}></div>
+              </div>
+              <div className="col-span-2">
+                {signal.stochastic ? `${signal.stochastic.k.toFixed(2)}/${signal.stochastic.d.toFixed(2)}` : 'N/A'}
+                <div className="h-1 w-full mt-1 bg-gray-300">
+                  <div 
+                    className="h-1 bg-blue-500" 
+                    style={{ width: `${signal.stochastic?.k || 0}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      <div className="mt-8 bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-semibold mb-4">Strategy Explanation</h2>
+        <p className="mb-4">This system uses a combined strategy with multiple technical indicators for higher accuracy:</p>
+        <ul className="list-disc pl-5 space-y-2">
+          <li><strong>RSI (14):</strong> Buy when below 30, Sell when above 70</li>
+          <li><strong>MACD:</strong> Buy when histogram is positive and MACD line is above signal line</li>
+          <li><strong>Stochastic Oscillator (14,3,3):</strong> Buy when both %K and %D are below 20 and %K crosses above %D</li>
+        </ul>
+        <p className="mt-4 text-sm text-gray-600">Note: For real trading, always use proper risk management and confirm signals with additional analysis.</p>
+      </div>
     </div>
   );
 };
 
-export default SignalBox;
+export default ForexSignalApp;
